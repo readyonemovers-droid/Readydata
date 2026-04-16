@@ -9,6 +9,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  window.location.origin;
+
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
 
@@ -20,9 +24,7 @@ export default function AdminLogin() {
     try {
       setLoading(true);
 
-      console.log("👉 Sending login request...", { phone, password });
-
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -34,11 +36,12 @@ export default function AdminLogin() {
         }),
       });
 
-      console.log("👉 Response status:", res.status);
-
-      const data = await res.json().catch(() => null);
-
-      console.log("👉 Response data:", data);
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Server did not return JSON");
+      }
 
       if (!res.ok) {
         alert(data?.error || "Login failed");
@@ -46,17 +49,15 @@ export default function AdminLogin() {
       }
 
       if (data?.authenticated) {
-        console.log("✅ Login success, redirecting...");
-
-        // IMPORTANT: force navigation (wouter sometimes fails silently)
+        // IMPORTANT: force navigation (reliable in Replit)
         window.location.href = "/admin/dashboard";
         return;
       }
 
       alert("Invalid login response");
     } catch (error: any) {
-      console.error("❌ Login error:", error);
-      alert(error?.message || "Something went wrong");
+      console.error(error);
+      alert(error?.message || "Login failed");
     } finally {
       setLoading(false);
     }
