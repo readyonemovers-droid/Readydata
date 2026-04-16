@@ -20,6 +20,8 @@ export default function AdminLogin() {
     try {
       setLoading(true);
 
+      console.log("👉 Sending login request...", { phone, password });
+
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -32,21 +34,29 @@ export default function AdminLogin() {
         }),
       });
 
-      const data = await res.json();
+      console.log("👉 Response status:", res.status);
+
+      const data = await res.json().catch(() => null);
+
+      console.log("👉 Response data:", data);
 
       if (!res.ok) {
-        alert(data.error || "Login failed");
+        alert(data?.error || "Login failed");
         return;
       }
 
-      if (data.authenticated) {
-        setLocation("/admin/dashboard");
-      } else {
-        alert("Invalid credentials");
+      if (data?.authenticated) {
+        console.log("✅ Login success, redirecting...");
+
+        // IMPORTANT: force navigation (wouter sometimes fails silently)
+        window.location.href = "/admin/dashboard";
+        return;
       }
+
+      alert("Invalid login response");
     } catch (error: any) {
-      console.error(error);
-      alert(error.message || "Login failed");
+      console.error("❌ Login error:", error);
+      alert(error?.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
