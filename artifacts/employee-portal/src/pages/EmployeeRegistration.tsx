@@ -225,9 +225,12 @@ export default function EmployeeRegistration() {
     setStep(5);
   });
 
+  const [phoneTaken, setPhoneTaken] = useState(false);
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
+    setPhoneTaken(false);
     try {
       const [profilePath, frontPath, backPath] = await Promise.all([
         uploadFile(profilePhoto!),
@@ -251,9 +254,24 @@ export default function EmployeeRegistration() {
 
       setSuccess(true);
     } catch (err: unknown) {
-      setError(
-        err instanceof Error ? err.message : "Submission failed. Please try again."
-      );
+      const status =
+        err instanceof Error && "status" in err
+          ? (err as { status: number }).status
+          : 0;
+      const message =
+        err instanceof Error && "data" in err && err.data != null &&
+        typeof (err.data as Record<string, unknown>).error === "string"
+          ? (err.data as { error: string }).error
+          : err instanceof Error
+          ? err.message
+          : "Submission failed. Please try again.";
+
+      if (status === 409) {
+        setPhoneTaken(true);
+        setError(message);
+      } else {
+        setError(message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -613,8 +631,22 @@ export default function EmployeeRegistration() {
               </div>
 
               {error && (
-                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive">
-                  {error}
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-sm text-destructive space-y-2">
+                  <p className="font-medium">{error}</p>
+                  {phoneTaken && (
+                    <button
+                      type="button"
+                      data-testid="button-fix-phone"
+                      onClick={() => {
+                        setError(null);
+                        setPhoneTaken(false);
+                        setStep(1);
+                      }}
+                      className="underline underline-offset-2 text-destructive hover:opacity-80 transition-opacity text-xs font-semibold"
+                    >
+                      Go back to step 1 and change your phone number →
+                    </button>
+                  )}
                 </div>
               )}
 
