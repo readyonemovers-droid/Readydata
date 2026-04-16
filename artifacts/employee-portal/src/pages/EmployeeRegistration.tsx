@@ -2,7 +2,8 @@ import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { supabase } from "@/lib/supabase";
+import { useCreateEmployee } from "@workspace/api-client-react";
+import { uploadFile } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,14 +107,12 @@ function FileUploadBox({
   hint,
   file,
   onFileChange,
-  accept,
   testId,
 }: {
   label: string;
   hint: string;
   file: File | null;
   onFileChange: (f: File | null) => void;
-  accept?: string;
   testId: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -131,7 +130,7 @@ function FileUploadBox({
         <input
           ref={inputRef}
           type="file"
-          accept={accept || "image/*"}
+          accept="image/*"
           className="hidden"
           onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
         />
@@ -172,11 +171,13 @@ export default function EmployeeRegistration() {
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [idFront, setIdFront] = useState<File | null>(null);
   const [idBack, setIdBack] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [idError, setIdError] = useState<string | null>(null);
+
+  const createEmployee = useCreateEmployee();
 
   const step1Form = useForm<Step1Data>({
     resolver: zodResolver(step1Schema),
@@ -224,49 +225,37 @@ export default function EmployeeRegistration() {
     setStep(5);
   });
 
-  const uploadFile = async (
-    file: File,
-    bucket: string,
-    folder: string
-  ): Promise<string> => {
-    const ext = file.name.split(".").pop();
-    const filename = `${folder}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from(bucket)
-      .upload(filename, file, { upsert: true });
-    if (error) throw new Error(`Upload failed: ${error.message}`);
-    const { data } = supabase.storage.from(bucket).getPublicUrl(filename);
-    return data.publicUrl;
-  };
-
   const handleSubmit = async () => {
-    setUploading(true);
+    setSubmitting(true);
     setError(null);
     try {
-      const [profileUrl, frontUrl, backUrl] = await Promise.all([
-        uploadFile(profilePhoto!, "profile-photos", "photos"),
-        uploadFile(idFront!, "id-front", "front"),
-        uploadFile(idBack!, "id-back", "back"),
+      const [profilePath, frontPath, backPath] = await Promise.all([
+        uploadFile(profilePhoto!),
+        uploadFile(idFront!),
+        uploadFile(idBack!),
       ]);
 
-      const { error: insertError } = await supabase.from("employees").insert({
-        first_name: formData.first_name,
-        second_name: formData.second_name,
-        third_name: formData.third_name,
-        full_name_id: formData.full_name_id,
-        phone: formData.phone,
-        skills: formData.skills,
-        profile_photo_url: profileUrl,
-        id_front_url: frontUrl,
-        id_back_url: backUrl,
+      await createEmployee.mutateAsync({
+        data: {
+          first_name: formData.first_name,
+          second_name: formData.second_name,
+          third_name: formData.third_name,
+          full_name_id: formData.full_name_id,
+          phone: formData.phone,
+          skills: formData.skills,
+          profile_photo_path: profilePath,
+          id_front_path: frontPath,
+          id_back_path: backPath,
+        },
       });
 
-      if (insertError) throw new Error(insertError.message);
       setSuccess(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Submission failed. Please try again.");
+      setError(
+        err instanceof Error ? err.message : "Submission failed. Please try again."
+      );
     } finally {
-      setUploading(false);
+      setSubmitting(false);
     }
   };
 
@@ -279,8 +268,7 @@ export default function EmployeeRegistration() {
           </div>
           <h2 className="text-2xl font-bold text-foreground">Submitted!</h2>
           <p className="text-muted-foreground">
-            Your information has been submitted successfully. We'll be in touch
-            soon.
+            Your information has been submitted successfully. We'll be in touch soon.
           </p>
           <Button
             data-testid="button-register-again"
@@ -313,7 +301,6 @@ export default function EmployeeRegistration() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-white">
-      {/* Header */}
       <div className="bg-white border-b border-border shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center">
@@ -404,11 +391,7 @@ export default function EmployeeRegistration() {
                 </p>
               </div>
               <div className="flex justify-end pt-2">
-                <Button
-                  data-testid="button-next-step1"
-                  type="submit"
-                  className="gap-2"
-                >
+                <Button data-testid="button-next-step1" type="submit" className="gap-2">
                   Next <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
@@ -542,7 +525,7 @@ export default function EmployeeRegistration() {
                 <Textarea
                   id="skills"
                   data-testid="input-skills"
-                  placeholder="e.g. Customer service, Microsoft Office, Arabic/English bilingual, Forklift certified..."
+                  placeholder="e.g. Customer service, Microsoft Office, Arabic/English bilingual..."
                   rows={3}
                   {...step4Form.register("skills")}
                 />
@@ -641,7 +624,7 @@ export default function EmployeeRegistration() {
                   type="button"
                   variant="outline"
                   onClick={() => setStep(4)}
-                  disabled={uploading}
+                  disabled={submitting}
                   className="gap-2"
                 >
                   <ChevronLeft className="w-4 h-4" /> Back
@@ -650,10 +633,10 @@ export default function EmployeeRegistration() {
                   data-testid="button-submit"
                   type="button"
                   onClick={handleSubmit}
-                  disabled={uploading}
+                  disabled={submitting}
                   className="gap-2 min-w-32"
                 >
-                  {uploading ? (
+                  {submitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" /> Submitting...
                     </>

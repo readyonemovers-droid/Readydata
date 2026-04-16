@@ -1,7 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { supabase } from "@/lib/supabase";
-import type { Employee } from "@/lib/supabase";
+import {
+  useListEmployees,
+  useAdminLogout,
+  useGetAuthSession,
+  getListEmployeesQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { buildObjectUrl } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,7 +30,21 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-function downloadImage(url: string, filename: string) {
+type Employee = {
+  id: number;
+  first_name: string;
+  second_name: string;
+  third_name: string;
+  full_name_id: string;
+  phone: string;
+  skills: string;
+  profile_photo_path: string | null;
+  id_front_path: string | null;
+  id_back_path: string | null;
+  created_at: string;
+};
+
+function downloadFromUrl(url: string, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
@@ -34,20 +54,19 @@ function downloadImage(url: string, filename: string) {
 }
 
 function ImagePreview({
-  url,
+  path,
   label,
   filename,
 }: {
-  url: string | null;
+  path: string | null;
   label: string;
   filename: string;
 }) {
+  const url = buildObjectUrl(path);
   if (!url) {
     return (
       <div className="space-y-1.5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
         <div className="h-32 bg-muted rounded-xl flex items-center justify-center border border-dashed border-border">
           <span className="text-xs text-muted-foreground">Not uploaded</span>
         </div>
@@ -56,29 +75,20 @@ function ImagePreview({
   }
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="relative group rounded-xl overflow-hidden border border-border">
-        <img
-          src={url}
-          alt={label}
-          className="w-full h-32 object-cover"
-          data-testid={`img-${filename}`}
-        />
+        <img src={url} alt={label} className="w-full h-32 object-cover" data-testid={`img-${filename}`} />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
           <button
             onClick={() => window.open(url, "_blank")}
             className="bg-white/90 hover:bg-white text-foreground rounded-lg p-1.5 transition-colors"
-            title="View full size"
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => downloadImage(url, filename)}
+            onClick={() => downloadFromUrl(url, filename)}
             data-testid={`button-download-${filename}`}
             className="bg-white/90 hover:bg-white text-foreground rounded-lg p-1.5 transition-colors"
-            title="Download"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
@@ -88,7 +98,7 @@ function ImagePreview({
         size="sm"
         variant="outline"
         className="w-full text-xs gap-1.5 h-7"
-        onClick={() => downloadImage(url, filename)}
+        onClick={() => downloadFromUrl(url, filename)}
         data-testid={`button-download-full-${filename}`}
       >
         <Download className="w-3 h-3" /> Download
@@ -97,32 +107,17 @@ function ImagePreview({
   );
 }
 
-function EmployeeModal({
-  employee,
-  onClose,
-}: {
-  employee: Employee;
-  onClose: () => void;
-}) {
-  const fullName = [
-    employee.first_name,
-    employee.second_name,
-    employee.third_name,
-  ]
-    .filter(Boolean)
-    .join(" ");
+function EmployeeModal({ employee, onClose }: { employee: Employee; onClose: () => void }) {
+  const fullName = [employee.first_name, employee.second_name, employee.third_name].filter(Boolean).join(" ");
+  const photoUrl = buildObjectUrl(employee.profile_photo_path);
 
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            {employee.profile_photo_url ? (
-              <img
-                src={employee.profile_photo_url}
-                alt={fullName}
-                className="w-10 h-10 rounded-full object-cover border-2 border-primary"
-              />
+            {photoUrl ? (
+              <img src={photoUrl} alt={fullName} className="w-10 h-10 rounded-full object-cover border-2 border-primary" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <Users className="w-5 h-5 text-primary" />
@@ -133,7 +128,6 @@ function EmployeeModal({
         </DialogHeader>
 
         <div className="space-y-5 mt-2">
-          {/* Info grid */}
           <div className="grid grid-cols-2 gap-3 bg-muted/40 rounded-xl p-4">
             {[
               { label: "First Name", value: employee.first_name },
@@ -141,10 +135,7 @@ function EmployeeModal({
               { label: "Third Name", value: employee.third_name },
               { label: "Full Name (ID)", value: employee.full_name_id },
               { label: "Phone", value: employee.phone },
-              {
-                label: "Submitted",
-                value: new Date(employee.created_at).toLocaleDateString(),
-              },
+              { label: "Submitted", value: new Date(employee.created_at).toLocaleDateString() },
             ].map(({ label, value }) => (
               <div key={label}>
                 <p className="text-xs text-muted-foreground">{label}</p>
@@ -153,26 +144,23 @@ function EmployeeModal({
             ))}
             <div className="col-span-2">
               <p className="text-xs text-muted-foreground">Skills</p>
-              <p className="text-sm font-medium text-foreground">
-                {employee.skills || "—"}
-              </p>
+              <p className="text-sm font-medium text-foreground">{employee.skills || "—"}</p>
             </div>
           </div>
 
-          {/* Images */}
           <div className="grid grid-cols-3 gap-3">
             <ImagePreview
-              url={employee.profile_photo_url}
+              path={employee.profile_photo_path}
               label="Profile Photo"
               filename={`${employee.first_name}-profile.jpg`}
             />
             <ImagePreview
-              url={employee.id_front_url}
+              path={employee.id_front_path}
               label="ID Front"
               filename={`${employee.first_name}-id-front.jpg`}
             />
             <ImagePreview
-              url={employee.id_back_url}
+              path={employee.id_back_path}
               label="ID Back"
               filename={`${employee.first_name}-id-back.jpg`}
             />
@@ -184,9 +172,8 @@ function EmployeeModal({
 }
 
 function EmployeeCard({ employee, onView }: { employee: Employee; onView: () => void }) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name]
-    .filter(Boolean)
-    .join(" ");
+  const fullName = [employee.first_name, employee.second_name, employee.third_name].filter(Boolean).join(" ");
+  const photoUrl = buildObjectUrl(employee.profile_photo_path);
 
   return (
     <div
@@ -194,24 +181,15 @@ function EmployeeCard({ employee, onView }: { employee: Employee; onView: () => 
       className="bg-white rounded-xl border border-border p-4 space-y-3 hover:shadow-md transition-all duration-200"
     >
       <div className="flex items-start gap-3">
-        {employee.profile_photo_url ? (
-          <img
-            src={employee.profile_photo_url}
-            alt={fullName}
-            className="w-12 h-12 rounded-xl object-cover border border-border flex-shrink-0"
-          />
+        {photoUrl ? (
+          <img src={photoUrl} alt={fullName} className="w-12 h-12 rounded-xl object-cover border border-border flex-shrink-0" />
         ) : (
           <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
             <Users className="w-6 h-6 text-primary" />
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p
-            className="font-semibold text-foreground truncate"
-            data-testid={`text-name-${employee.id}`}
-          >
-            {fullName}
-          </p>
+          <p className="font-semibold text-foreground truncate" data-testid={`text-name-${employee.id}`}>{fullName}</p>
           <p className="text-sm text-muted-foreground">{employee.phone}</p>
           <p className="text-xs text-muted-foreground truncate">{employee.skills}</p>
         </div>
@@ -230,9 +208,8 @@ function EmployeeCard({ employee, onView }: { employee: Employee; onView: () => 
 }
 
 function EmployeeRow({ employee, onView }: { employee: Employee; onView: () => void }) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name]
-    .filter(Boolean)
-    .join(" ");
+  const fullName = [employee.first_name, employee.second_name, employee.third_name].filter(Boolean).join(" ");
+  const photoUrl = buildObjectUrl(employee.profile_photo_path);
 
   return (
     <tr
@@ -241,40 +218,23 @@ function EmployeeRow({ employee, onView }: { employee: Employee; onView: () => v
     >
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5">
-          {employee.profile_photo_url ? (
-            <img
-              src={employee.profile_photo_url}
-              alt={fullName}
-              className="w-8 h-8 rounded-lg object-cover border border-border"
-            />
+          {photoUrl ? (
+            <img src={photoUrl} alt={fullName} className="w-8 h-8 rounded-lg object-cover border border-border" />
           ) : (
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Users className="w-4 h-4 text-primary" />
             </div>
           )}
-          <span
-            className="text-sm font-medium"
-            data-testid={`text-name-row-${employee.id}`}
-          >
-            {fullName}
-          </span>
+          <span className="text-sm font-medium" data-testid={`text-name-row-${employee.id}`}>{fullName}</span>
         </div>
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{employee.phone}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">
-        {employee.skills}
-      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">{employee.skills}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground">
         {new Date(employee.created_at).toLocaleDateString()}
       </td>
       <td className="px-4 py-3">
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs"
-          onClick={onView}
-          data-testid={`button-view-row-${employee.id}`}
-        >
+        <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={onView} data-testid={`button-view-row-${employee.id}`}>
           <Eye className="w-3.5 h-3.5" /> View
         </Button>
       </td>
@@ -284,41 +244,48 @@ function EmployeeRow({ employee, onView }: { employee: Employee; onView: () => v
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [selected, setSelected] = useState<Employee | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const queryClient = useQueryClient();
+
+  const sessionQuery = useGetAuthSession({
+    query: { queryKey: ["auth-session"] },
+  });
+
+  const employeesQuery = useListEmployees({
+    query: {
+      queryKey: getListEmployeesQueryKey(),
+      enabled: sessionQuery.data?.authenticated === true,
+    },
+  });
+
+  const adminLogout = useAdminLogout();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) {
+    if (sessionQuery.data?.authenticated === false) {
+      setLocation("/admin");
+    }
+  }, [sessionQuery.data, setLocation]);
+
+  const handleLogout = () => {
+    adminLogout.mutate(undefined, {
+      onSuccess: () => {
+        queryClient.clear();
         setLocation("/admin");
-      } else {
-        setAuthChecked(true);
-      }
+      },
     });
-  }, [setLocation]);
-
-  const fetchEmployees = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("employees")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) setEmployees(data as Employee[]);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (authChecked) fetchEmployees();
-  }, [authChecked, fetchEmployees]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setLocation("/admin");
   };
+
+  if (sessionQuery.isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const employees = (employeesQuery.data ?? []) as Employee[];
 
   const filtered = employees.filter((e) => {
     const q = search.toLowerCase();
@@ -331,14 +298,6 @@ export default function AdminDashboard() {
       e.skills?.toLowerCase().includes(q)
     );
   });
-
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -358,6 +317,7 @@ export default function AdminDashboard() {
             variant="outline"
             size="sm"
             onClick={handleLogout}
+            disabled={adminLogout.isPending}
             className="gap-1.5 text-xs"
             data-testid="button-logout"
           >
@@ -367,7 +327,7 @@ export default function AdminDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
-        {/* Stats bar */}
+        {/* Stats */}
         <div className="bg-white rounded-xl border border-border p-4 flex items-center gap-3">
           <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
             <Users className="w-5 h-5 text-primary" />
@@ -423,7 +383,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Employees */}
-        {loading ? (
+        {employeesQuery.isLoading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
@@ -434,19 +394,13 @@ export default function AdminDashboard() {
               {search ? "No employees match your search" : "No employees yet"}
             </p>
             <p className="text-sm text-muted-foreground/70 mt-1">
-              {search
-                ? "Try a different search term"
-                : "Employee submissions will appear here"}
+              {search ? "Try a different search term" : "Employee submissions will appear here"}
             </p>
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((emp) => (
-              <EmployeeCard
-                key={emp.id}
-                employee={emp}
-                onView={() => setSelected(emp)}
-              />
+              <EmployeeCard key={emp.id} employee={emp} onView={() => setSelected(emp)} />
             ))}
           </div>
         ) : (
@@ -454,30 +408,16 @@ export default function AdminDashboard() {
             <table className="w-full">
               <thead>
                 <tr className="bg-muted/40 border-b border-border">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Phone
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Skills
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Submitted
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Action
-                  </th>
+                  {["Name", "Phone", "Skills", "Submitted", "Action"].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((emp) => (
-                  <EmployeeRow
-                    key={emp.id}
-                    employee={emp}
-                    onView={() => setSelected(emp)}
-                  />
+                  <EmployeeRow key={emp.id} employee={emp} onView={() => setSelected(emp)} />
                 ))}
               </tbody>
             </table>

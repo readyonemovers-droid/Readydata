@@ -3,14 +3,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
-import { supabase } from "@/lib/supabase";
+import { useAdminLogin } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
-
-const ADMIN_PHONE = "0798940935";
-const ADMIN_EMAIL = "lestaz@gmail.com";
 
 const loginSchema = z.object({
   phone: z.string().min(1, "Phone number is required"),
@@ -21,37 +18,33 @@ type LoginData = z.infer<typeof loginSchema>;
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showPass, setShowPass] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const adminLogin = useAdminLogin();
 
   const form = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { phone: "", password: "" },
   });
 
-  const handleLogin = form.handleSubmit(async (data) => {
-    setLoading(true);
-    setError(null);
-
-    if (data.phone !== ADMIN_PHONE) {
-      setError("Invalid credentials. Access denied.");
-      setLoading(false);
-      return;
-    }
-
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: ADMIN_EMAIL,
-      password: data.password,
-    });
-
-    if (authError) {
-      setError("Invalid credentials. Access denied.");
-      setLoading(false);
-      return;
-    }
-
-    setLocation("/admin/dashboard");
+  const handleLogin = form.handleSubmit((data) => {
+    setErrorMsg(null);
+    adminLogin.mutate(
+      { data },
+      {
+        onSuccess: (result) => {
+          if (result.authenticated) {
+            setLocation("/admin/dashboard");
+          } else {
+            setErrorMsg("Invalid credentials. Access denied.");
+          }
+        },
+        onError: () => {
+          setErrorMsg("Invalid credentials. Access denied.");
+        },
+      }
+    );
   });
 
   return (
@@ -112,12 +105,12 @@ export default function AdminLogin() {
               )}
             </div>
 
-            {error && (
+            {errorMsg && (
               <div
                 data-testid="error-login"
                 className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive"
               >
-                {error}
+                {errorMsg}
               </div>
             )}
 
@@ -125,9 +118,9 @@ export default function AdminLogin() {
               data-testid="button-admin-login"
               type="submit"
               className="w-full gap-2"
-              disabled={loading}
+              disabled={adminLogin.isPending}
             >
-              {loading ? (
+              {adminLogin.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" /> Signing in...
                 </>

@@ -3,20 +3,26 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Employee Portal API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: employees
+    description: Employee operations
+  - name: auth
+    description: Admin authentication
+  - name: storage
+    description: File storage operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,166 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List all employees (admin only)
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Submit employee registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeBody"
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get a single employee by ID (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: adminLogin
+      tags: [auth]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: adminLogout
+      tags: [auth]
+      summary: Admin logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+
+  /auth/session:
+    get:
+      operationId: getAuthSession
+      tags: [auth]
+      summary: Check current session
+      responses:
+        "200":
+          description: Session status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      summary: Serve a stored object
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +200,125 @@ components:
       required:
         - status
 
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+        second_name:
+          type: string
+        third_name:
+          type: string
+        full_name_id:
+          type: string
+        phone:
+          type: string
+        skills:
+          type: string
+        profile_photo_path:
+          type: ["string", "null"]
+        id_front_path:
+          type: ["string", "null"]
+        id_back_path:
+          type: ["string", "null"]
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - first_name
+        - second_name
+        - third_name
+        - full_name_id
+        - phone
+        - skills
+        - profile_photo_path
+        - id_front_path
+        - id_back_path
+        - created_at
+
+    CreateEmployeeBody:
+      type: object
+      properties:
+        first_name:
+          type: string
+        second_name:
+          type: string
+        third_name:
+          type: string
+        full_name_id:
+          type: string
+        phone:
+          type: string
+        skills:
+          type: string
+        profile_photo_path:
+          type: string
+        id_front_path:
+          type: string
+        id_back_path:
+          type: string
+      required:
+        - first_name
+        - second_name
+        - third_name
+        - full_name_id
+        - phone
+        - skills
+        - profile_photo_path
+        - id_front_path
+        - id_back_path
+
+    LoginBody:
+      type: object
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+      required:
+        - phone
+        - password
+
+    AuthStatus:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+      required:
+        - authenticated
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required:
+        - name
+        - size
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+      required:
+        - uploadURL
+        - objectPath
