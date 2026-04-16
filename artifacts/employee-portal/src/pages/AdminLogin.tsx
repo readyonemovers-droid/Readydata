@@ -14,33 +14,41 @@ export default function AdminLogin() {
 
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     try {
-      const res = await fetch("/auth/login", {
+      setLoading(true);
+
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include", // 🔥 IMPORTANT for session
-        body: JSON.stringify({ phone, password }),
+        credentials: "include",
+        body: JSON.stringify({
+          phone: phone.trim(),
+          password: password.trim(),
+        }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Login failed");
+        alert(data.error || "Login failed");
+        return;
       }
 
       if (data.authenticated) {
-        console.log("Login success");
-        setLocation("/admin/dashboard"); // redirect
+        setLocation("/admin/dashboard");
       } else {
-        alert("Invalid phone or password");
+        alert("Invalid credentials");
       }
     } catch (error: any) {
       console.error(error);
       alert(error.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -65,8 +73,12 @@ export default function AdminLogin() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          <Button className="w-full" onClick={handleLogin}>
-            Login
+          <Button
+            className="w-full"
+            onClick={handleLogin}
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
           </Button>
         </CardContent>
       </Card>
