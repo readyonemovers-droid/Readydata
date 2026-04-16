@@ -325,9 +325,9 @@ export default function EmployeeRegistration() {
             <User className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-foreground">Employee Registration</h1>
+            <h1 className="text-xl font-extrabold text-foreground tracking-tight">Ready One Movers</h1>
             <p className="text-xs text-muted-foreground">
-              Complete all steps to submit your information
+              Employee Registration — Complete all steps to submit your information
             </p>
           </div>
         </div>
