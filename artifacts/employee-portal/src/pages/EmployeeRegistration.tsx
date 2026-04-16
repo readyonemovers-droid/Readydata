@@ -333,7 +333,7 @@ export default function EmployeeRegistration() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 py-8 pb-24">
         <StepIndicator current={step} />
 
         <div className="bg-white rounded-2xl shadow-lg border border-border overflow-hidden">
