@@ -1,0 +1,143 @@
+Build a modern web application using React for the frontend and Supabase for the backend (database, authentication, and storage).
+
+🎯 Objective
+
+Create a system where:
+
+Employees can submit their personal and identification data in one smooth process
+Admin can securely view, manage, and download all submitted data
+🎨 UI / DESIGN
+Theme: orange → white gradient
+Clean, modern, minimal UI
+Fully responsive (mobile + desktop)
+Use a multi-step form (step-by-step)
+👨‍💼 EMPLOYEE REGISTRATION (MAIN PAGE)
+
+Create a multi-step form with the following steps:
+
+🧾 Step 1: Personal Information
+
+Fields:
+
+First Name
+Second Name
+Third Name
+Phone Number
+Must be validated (format: 07XXXXXXXX)
+Must be active (WhatsApp-capable)
+📸 Step 2: Profile Photo Upload
+Upload a half-portrait image
+Requirements:
+Face clearly visible
+Wearing job uniform
+This field is mandatory
+🪪 Step 3: National ID Upload
+Upload:
+Front side of ID
+Back side of ID
+Both uploads are required
+Images must be clear and readable
+🧠 Step 4: Additional Details
+Full Name (must match exactly as on ID)
+Skills (text input or selectable tags)
+✅ Step 5: Validation & Submission
+Validate all required fields
+Validate phone number format
+Upload images to Supabase Storage
+Save all data into Supabase database
+Show success message after submission
+🗄️ BACKEND (SUPABASE)
+Database Table: employees
+
+Fields:
+
+id (UUID, primary key)
+first_name
+second_name
+third_name
+full_name_id
+phone
+skills
+profile_photo_url
+id_front_url
+id_back_url
+created_at (timestamp)
+📦 Storage Buckets
+
+Create:
+
+profile-photos
+id-front
+id-back
+
+All uploaded images must be stored here and linked in the database.
+
+🔐 ADMIN PANEL
+Access
+Route: /admin
+Hidden (not visible on homepage)
+🔑 Login Credentials
+Email: lestaz@gmail.com
+Password: lestaz
+Username (Phone Input): 0798940935
+🧠 Authentication Logic
+Login form should ask:
+Phone number (username)
+Password
+Behind the scenes:
+Authenticate using Supabase Auth with:
+Email: lestaz@gmail.com
+Password: entered password
+Allow access ONLY if:
+Password is correct
+AND phone number entered = 0798940935
+💻 Behavior
+If login is correct → redirect to dashboard
+If incorrect → show error message
+📊 ADMIN DASHBOARD FEATURES
+1. Employee List
+Display all employees
+View modes:
+Grid view
+Table/list view
+2. Employee Details
+Each employee has a “View” button
+On click, show:
+Full name details
+Phone number
+Skills
+Profile photo
+ID front image
+ID back image
+🖼️ Image Handling
+Show image previews
+Allow admin to:
+Download profile photo
+Download ID images
+🔒 SECURITY RULES
+Enable Supabase Row Level Security (RLS)
+Public users:
+Can INSERT data only
+Admin:
+Can READ all data
+⚙️ TECHNICAL REQUIREMENTS
+Use React (functional components + hooks)
+Use Supabase client SDK
+Handle file uploads correctly
+Use proper form validation
+Clean project structure (components, pages, services)
+💡 OPTIONAL FEATURES (BONUS)
+Search employees
+Filter employees
+Export data (CSV/Excel)
+WhatsApp verification integration
+Admin notifications on new submissions
+🚀 FINAL RESULT
+
+A complete web app where:
+
+Employees submit their data easily in one guided flow
+Admin logs in securely and:
+Views all employees
+Opens full profiles
+Previews and downloads images
