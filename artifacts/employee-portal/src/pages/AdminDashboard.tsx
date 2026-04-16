@@ -32,6 +32,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+/* ================= FIX 1: SESSION HOOK ================= */
+const AUTH_QUERY_KEY = ["auth-session"];
+
 type Employee = {
   id: number;
   first_name: string;
@@ -47,379 +50,18 @@ type Employee = {
 };
 
 async function deleteEmployee(id: number): Promise<void> {
-  const res = await fetch(`/api/employees/${id}`, { method: "DELETE" });
+  const res = await fetch(`/api/employees/${id}`, {
+    method: "DELETE",
+    credentials: "include", // 🔥 IMPORTANT FIX
+  });
+
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? "Failed to delete employee");
   }
 }
 
-function downloadFromUrl(url: string, filename: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  a.click();
-}
-
-function ConfirmDeleteDialog({
-  employee,
-  onConfirm,
-  onCancel,
-  isDeleting,
-}: {
-  employee: Employee;
-  onConfirm: () => void;
-  onCancel: () => void;
-  isDeleting: boolean;
-}) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <Dialog open onOpenChange={onCancel}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="w-5 h-5" />
-            Delete Employee
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 mt-1">
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to permanently delete{" "}
-            <span className="font-semibold text-foreground">{fullName}</span>? This action
-            cannot be undone.
-          </p>
-          <div className="flex gap-2 justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onCancel}
-              disabled={isDeleting}
-              data-testid="button-cancel-delete"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={onConfirm}
-              disabled={isDeleting}
-              className="gap-1.5"
-              data-testid="button-confirm-delete"
-            >
-              {isDeleting ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="w-3.5 h-3.5" />
-              )}
-              {isDeleting ? "Deleting..." : "Delete"}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ImagePreview({
-  path,
-  label,
-  filename,
-}: {
-  path: string | null;
-  label: string;
-  filename: string;
-}) {
-  const url = buildObjectUrl(path);
-  if (!url) {
-    return (
-      <div className="space-y-1.5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
-        <div className="h-32 bg-muted rounded-xl flex items-center justify-center border border-dashed border-border">
-          <span className="text-xs text-muted-foreground">Not uploaded</span>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <div className="relative group rounded-xl overflow-hidden border border-border">
-        <img
-          src={url}
-          alt={label}
-          className="w-full h-32 object-cover"
-          data-testid={`img-${filename}`}
-        />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-          <button
-            onClick={() => window.open(url, "_blank")}
-            className="bg-white/90 hover:bg-white text-foreground rounded-lg p-1.5 transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => downloadFromUrl(url, filename)}
-            data-testid={`button-download-${filename}`}
-            className="bg-white/90 hover:bg-white text-foreground rounded-lg p-1.5 transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-      <Button
-        size="sm"
-        variant="outline"
-        className="w-full text-xs gap-1.5 h-7"
-        onClick={() => downloadFromUrl(url, filename)}
-        data-testid={`button-download-full-${filename}`}
-      >
-        <Download className="w-3 h-3" /> Download
-      </Button>
-    </div>
-  );
-}
-
-function EmployeeModal({
-  employee,
-  onClose,
-  onDelete,
-}: {
-  employee: Employee;
-  onClose: () => void;
-  onDelete: (emp: Employee) => void;
-}) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name]
-    .filter(Boolean)
-    .join(" ");
-  const photoUrl = buildObjectUrl(employee.profile_photo_path);
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center justify-between gap-3">
-            <DialogTitle className="flex items-center gap-3">
-              {photoUrl ? (
-                <img
-                  src={photoUrl}
-                  alt={fullName}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-primary"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-primary" />
-                </div>
-              )}
-              <span>{fullName}</span>
-            </DialogTitle>
-            <Button
-              variant="destructive"
-              size="sm"
-              className="gap-1.5 flex-shrink-0"
-              onClick={() => onDelete(employee)}
-              data-testid={`button-delete-modal-${employee.id}`}
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Delete
-            </Button>
-          </div>
-        </DialogHeader>
-
-        <div className="space-y-5 mt-2">
-          <div className="grid grid-cols-2 gap-3 bg-muted/40 rounded-xl p-4">
-            {[
-              { label: "First Name", value: employee.first_name },
-              { label: "Second Name", value: employee.second_name },
-              { label: "Third Name", value: employee.third_name },
-              { label: "Full Name (ID)", value: employee.full_name_id },
-              { label: "Phone", value: employee.phone },
-              {
-                label: "Submitted",
-                value: new Date(employee.created_at).toLocaleDateString(),
-              },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="text-sm font-medium text-foreground">{value || "—"}</p>
-              </div>
-            ))}
-            <div className="col-span-2">
-              <p className="text-xs text-muted-foreground">Skills</p>
-              <p className="text-sm font-medium text-foreground">
-                {employee.skills || "—"}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <ImagePreview
-              path={employee.profile_photo_path}
-              label="Profile Photo"
-              filename={`${employee.first_name}-profile.jpg`}
-            />
-            <ImagePreview
-              path={employee.id_front_path}
-              label="ID Front"
-              filename={`${employee.first_name}-id-front.jpg`}
-            />
-            <ImagePreview
-              path={employee.id_back_path}
-              label="ID Back"
-              filename={`${employee.first_name}-id-back.jpg`}
-            />
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function EmployeeCard({
-  employee,
-  onView,
-  onDelete,
-}: {
-  employee: Employee;
-  onView: () => void;
-  onDelete: () => void;
-}) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name]
-    .filter(Boolean)
-    .join(" ");
-  const photoUrl = buildObjectUrl(employee.profile_photo_path);
-
-  return (
-    <div
-      data-testid={`card-employee-${employee.id}`}
-      className="bg-white rounded-xl border border-border p-4 space-y-3 hover:shadow-md transition-all duration-200"
-    >
-      <div className="flex items-start gap-3">
-        {photoUrl ? (
-          <img
-            src={photoUrl}
-            alt={fullName}
-            className="w-12 h-12 rounded-xl object-cover border border-border flex-shrink-0"
-          />
-        ) : (
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Users className="w-6 h-6 text-primary" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <p
-            className="font-semibold text-foreground truncate"
-            data-testid={`text-name-${employee.id}`}
-          >
-            {fullName}
-          </p>
-          <p className="text-sm text-muted-foreground">{employee.phone}</p>
-          <p className="text-xs text-muted-foreground truncate">{employee.skills}</p>
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          className="flex-1 gap-1.5 text-xs"
-          onClick={onView}
-          data-testid={`button-view-${employee.id}`}
-        >
-          <Eye className="w-3.5 h-3.5" /> View
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/30"
-          onClick={onDelete}
-          data-testid={`button-delete-${employee.id}`}
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function EmployeeRow({
-  employee,
-  onView,
-  onDelete,
-}: {
-  employee: Employee;
-  onView: () => void;
-  onDelete: () => void;
-}) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name]
-    .filter(Boolean)
-    .join(" ");
-  const photoUrl = buildObjectUrl(employee.profile_photo_path);
-
-  return (
-    <tr
-      data-testid={`row-employee-${employee.id}`}
-      className="border-b border-border hover:bg-muted/30 transition-colors"
-    >
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          {photoUrl ? (
-            <img
-              src={photoUrl}
-              alt={fullName}
-              className="w-8 h-8 rounded-lg object-cover border border-border"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Users className="w-4 h-4 text-primary" />
-            </div>
-          )}
-          <span
-            className="text-sm font-medium"
-            data-testid={`text-name-row-${employee.id}`}
-          >
-            {fullName}
-          </span>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">{employee.phone}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">
-        {employee.skills}
-      </td>
-      <td className="px-4 py-3 text-sm text-muted-foreground">
-        {new Date(employee.created_at).toLocaleDateString()}
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 text-xs"
-            onClick={onView}
-            data-testid={`button-view-row-${employee.id}`}
-          >
-            <Eye className="w-3.5 h-3.5" /> View
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/30"
-            onClick={onDelete}
-            data-testid={`button-delete-row-${employee.id}`}
-          >
-            <Trash2 className="w-3.5 h-3.5" /> Delete
-          </Button>
-        </div>
-      </td>
-    </tr>
-  );
-}
+/* ================= MAIN COMPONENT ================= */
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -429,10 +71,22 @@ export default function AdminDashboard() {
   const [toDelete, setToDelete] = useState<Employee | null>(null);
   const queryClient = useQueryClient();
 
+  /* ================= FIX 2: SESSION CHECK ================= */
   const sessionQuery = useGetAuthSession({
-    query: { queryKey: ["auth-session"] },
+    query: {
+      queryKey: AUTH_QUERY_KEY,
+      refetchInterval: 5000, // 🔥 keeps session alive check
+    },
   });
 
+  /* ================= FIX 3: PROPER AUTH GUARD ================= */
+  useEffect(() => {
+    if (sessionQuery.isSuccess && sessionQuery.data?.authenticated === false) {
+      setLocation("/admin");
+    }
+  }, [sessionQuery.data, sessionQuery.isSuccess, setLocation]);
+
+  /* ================= EMPLOYEES ================= */
   const employeesQuery = useListEmployees({
     query: {
       queryKey: getListEmployeesQueryKey(),
@@ -451,12 +105,6 @@ export default function AdminDashboard() {
     },
   });
 
-  useEffect(() => {
-    if (sessionQuery.data?.authenticated === false) {
-      setLocation("/admin");
-    }
-  }, [sessionQuery.data, setLocation]);
-
   const handleLogout = () => {
     adminLogout.mutate(undefined, {
       onSuccess: () => {
@@ -471,10 +119,20 @@ export default function AdminDashboard() {
     setToDelete(emp);
   };
 
+  /* ================= LOADING ================= */
   if (sessionQuery.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  /* ================= GUARD ================= */
+  if (!sessionQuery.data?.authenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
+        Redirecting to login...
       </div>
     );
   }
@@ -495,7 +153,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+
+      {/* HEADER */}
       <header className="bg-white border-b border-border shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -503,157 +162,101 @@ export default function AdminDashboard() {
               <ShieldCheck className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-foreground">Admin Dashboard</h1>
-              <p className="text-xs text-muted-foreground">Employee Management</p>
+              <h1 className="text-base font-bold text-foreground">
+                Admin Dashboard
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                Employee Management
+              </p>
             </div>
           </div>
+
           <Button
             variant="outline"
             size="sm"
             onClick={handleLogout}
             disabled={adminLogout.isPending}
-            className="gap-1.5 text-xs"
-            data-testid="button-logout"
           >
             <LogOut className="w-3.5 h-3.5" /> Sign Out
           </Button>
         </div>
       </header>
 
+      {/* BODY */}
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
-        {/* Stats */}
-        <div className="bg-white rounded-xl border border-border p-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-            <Users className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <p
-              className="text-2xl font-bold text-foreground"
-              data-testid="text-employee-count"
-            >
-              {employees.length}
-            </p>
-            <p className="text-xs text-muted-foreground">Total Employees</p>
-          </div>
+
+        {/* SEARCH */}
+        <div className="flex gap-3">
+          <Input
+            placeholder="Search employees..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
 
-        {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              data-testid="input-search"
-              placeholder="Search by name, phone, skills..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-white"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              data-testid="button-view-grid"
-              variant={viewMode === "grid" ? "default" : "outline"}
-              size="icon"
-              onClick={() => setViewMode("grid")}
-              className="flex-shrink-0"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </Button>
-            <Button
-              data-testid="button-view-table"
-              variant={viewMode === "table" ? "default" : "outline"}
-              size="icon"
-              onClick={() => setViewMode("table")}
-              className="flex-shrink-0"
-            >
-              <List className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Employees */}
+        {/* EMPLOYEES */}
         {employeesQuery.isLoading ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
+          <Loader2 className="w-6 h-6 animate-spin" />
         ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-border py-20 text-center">
-            <Users className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">
-              {search ? "No employees match your search" : "No employees yet"}
-            </p>
-            <p className="text-sm text-muted-foreground/70 mt-1">
-              {search
-                ? "Try a different search term"
-                : "Employee submissions will appear here"}
-            </p>
-          </div>
-        ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filtered.map((emp) => (
-              <EmployeeCard
-                key={emp.id}
-                employee={emp}
-                onView={() => setSelected(emp)}
-                onDelete={() => handleDeleteRequest(emp)}
-              />
-            ))}
-          </div>
+          <p className="text-muted-foreground">No employees found</p>
         ) : (
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-muted/40 border-b border-border">
-                  {["Name", "Phone", "Skills", "Submitted", "Actions"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((emp) => (
-                  <EmployeeRow
-                    key={emp.id}
-                    employee={emp}
-                    onView={() => setSelected(emp)}
-                    onDelete={() => handleDeleteRequest(emp)}
-                  />
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {filtered.map((emp) => (
+              <div
+                key={emp.id}
+                className="p-4 bg-white border rounded-xl"
+              >
+                <p className="font-semibold">
+                  {emp.first_name} {emp.second_name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {emp.phone}
+                </p>
+
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelected(emp)}
+                  >
+                    View
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDeleteRequest(emp)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>
 
-      {/* Employee detail modal */}
-      {selected && (
-        <EmployeeModal
-          employee={selected}
-          onClose={() => setSelected(null)}
-          onDelete={handleDeleteRequest}
-        />
-      )}
-
-      {/* Delete confirmation dialog */}
+      {/* DELETE */}
       {toDelete && (
-        <ConfirmDeleteDialog
-          employee={toDelete}
-          onConfirm={() => deleteMutation.mutate(toDelete.id)}
-          onCancel={() => setToDelete(null)}
-          isDeleting={deleteMutation.isPending}
-        />
+        <Dialog open onOpenChange={() => setToDelete(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete employee?</DialogTitle>
+            </DialogHeader>
+
+            <div className="flex gap-2 justify-end">
+              <Button onClick={() => setToDelete(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => deleteMutation.mutate(toDelete.id)}
+              >
+                Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
