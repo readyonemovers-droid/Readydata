@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useListEmployees,
   useAdminLogout,
   useGetAuthSession,
   getListEmployeesQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { buildObjectUrl } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,8 @@ import {
   Loader2,
   X,
   ExternalLink,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 type Employee = {
@@ -44,6 +46,14 @@ type Employee = {
   created_at: string;
 };
 
+async function deleteEmployee(id: number): Promise<void> {
+  const res = await fetch(`/api/employees/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? "Failed to delete employee");
+  }
+}
+
 function downloadFromUrl(url: string, filename: string) {
   const a = document.createElement("a");
   a.href = url;
@@ -51,6 +61,68 @@ function downloadFromUrl(url: string, filename: string) {
   a.target = "_blank";
   a.rel = "noopener noreferrer";
   a.click();
+}
+
+function ConfirmDeleteDialog({
+  employee,
+  onConfirm,
+  onCancel,
+  isDeleting,
+}: {
+  employee: Employee;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isDeleting: boolean;
+}) {
+  const fullName = [employee.first_name, employee.second_name, employee.third_name]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <Dialog open onOpenChange={onCancel}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="w-5 h-5" />
+            Delete Employee
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-1">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to permanently delete{" "}
+            <span className="font-semibold text-foreground">{fullName}</span>? This action
+            cannot be undone.
+          </p>
+          <div className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
+              disabled={isDeleting}
+              data-testid="button-cancel-delete"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onConfirm}
+              disabled={isDeleting}
+              className="gap-1.5"
+              data-testid="button-confirm-delete"
+            >
+              {isDeleting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" />
+              )}
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function ImagePreview({
@@ -66,7 +138,9 @@ function ImagePreview({
   if (!url) {
     return (
       <div className="space-y-1.5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
         <div className="h-32 bg-muted rounded-xl flex items-center justify-center border border-dashed border-border">
           <span className="text-xs text-muted-foreground">Not uploaded</span>
         </div>
@@ -75,9 +149,16 @@ function ImagePreview({
   }
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
       <div className="relative group rounded-xl overflow-hidden border border-border">
-        <img src={url} alt={label} className="w-full h-32 object-cover" data-testid={`img-${filename}`} />
+        <img
+          src={url}
+          alt={label}
+          className="w-full h-32 object-cover"
+          data-testid={`img-${filename}`}
+        />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
           <button
             onClick={() => window.open(url, "_blank")}
@@ -107,24 +188,49 @@ function ImagePreview({
   );
 }
 
-function EmployeeModal({ employee, onClose }: { employee: Employee; onClose: () => void }) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name].filter(Boolean).join(" ");
+function EmployeeModal({
+  employee,
+  onClose,
+  onDelete,
+}: {
+  employee: Employee;
+  onClose: () => void;
+  onDelete: (emp: Employee) => void;
+}) {
+  const fullName = [employee.first_name, employee.second_name, employee.third_name]
+    .filter(Boolean)
+    .join(" ");
   const photoUrl = buildObjectUrl(employee.profile_photo_path);
 
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            {photoUrl ? (
-              <img src={photoUrl} alt={fullName} className="w-10 h-10 rounded-full object-cover border-2 border-primary" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-            )}
-            <span>{fullName}</span>
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="flex items-center gap-3">
+              {photoUrl ? (
+                <img
+                  src={photoUrl}
+                  alt={fullName}
+                  className="w-10 h-10 rounded-full object-cover border-2 border-primary"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-primary" />
+                </div>
+              )}
+              <span>{fullName}</span>
+            </DialogTitle>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="gap-1.5 flex-shrink-0"
+              onClick={() => onDelete(employee)}
+              data-testid={`button-delete-modal-${employee.id}`}
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="space-y-5 mt-2">
@@ -135,7 +241,10 @@ function EmployeeModal({ employee, onClose }: { employee: Employee; onClose: () 
               { label: "Third Name", value: employee.third_name },
               { label: "Full Name (ID)", value: employee.full_name_id },
               { label: "Phone", value: employee.phone },
-              { label: "Submitted", value: new Date(employee.created_at).toLocaleDateString() },
+              {
+                label: "Submitted",
+                value: new Date(employee.created_at).toLocaleDateString(),
+              },
             ].map(({ label, value }) => (
               <div key={label}>
                 <p className="text-xs text-muted-foreground">{label}</p>
@@ -144,7 +253,9 @@ function EmployeeModal({ employee, onClose }: { employee: Employee; onClose: () 
             ))}
             <div className="col-span-2">
               <p className="text-xs text-muted-foreground">Skills</p>
-              <p className="text-sm font-medium text-foreground">{employee.skills || "—"}</p>
+              <p className="text-sm font-medium text-foreground">
+                {employee.skills || "—"}
+              </p>
             </div>
           </div>
 
@@ -171,8 +282,18 @@ function EmployeeModal({ employee, onClose }: { employee: Employee; onClose: () 
   );
 }
 
-function EmployeeCard({ employee, onView }: { employee: Employee; onView: () => void }) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name].filter(Boolean).join(" ");
+function EmployeeCard({
+  employee,
+  onView,
+  onDelete,
+}: {
+  employee: Employee;
+  onView: () => void;
+  onDelete: () => void;
+}) {
+  const fullName = [employee.first_name, employee.second_name, employee.third_name]
+    .filter(Boolean)
+    .join(" ");
   const photoUrl = buildObjectUrl(employee.profile_photo_path);
 
   return (
@@ -182,33 +303,63 @@ function EmployeeCard({ employee, onView }: { employee: Employee; onView: () => 
     >
       <div className="flex items-start gap-3">
         {photoUrl ? (
-          <img src={photoUrl} alt={fullName} className="w-12 h-12 rounded-xl object-cover border border-border flex-shrink-0" />
+          <img
+            src={photoUrl}
+            alt={fullName}
+            className="w-12 h-12 rounded-xl object-cover border border-border flex-shrink-0"
+          />
         ) : (
           <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
             <Users className="w-6 h-6 text-primary" />
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-foreground truncate" data-testid={`text-name-${employee.id}`}>{fullName}</p>
+          <p
+            className="font-semibold text-foreground truncate"
+            data-testid={`text-name-${employee.id}`}
+          >
+            {fullName}
+          </p>
           <p className="text-sm text-muted-foreground">{employee.phone}</p>
           <p className="text-xs text-muted-foreground truncate">{employee.skills}</p>
         </div>
       </div>
-      <Button
-        size="sm"
-        variant="outline"
-        className="w-full gap-1.5 text-xs"
-        onClick={onView}
-        data-testid={`button-view-${employee.id}`}
-      >
-        <Eye className="w-3.5 h-3.5" /> View Profile
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="flex-1 gap-1.5 text-xs"
+          onClick={onView}
+          data-testid={`button-view-${employee.id}`}
+        >
+          <Eye className="w-3.5 h-3.5" /> View
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/30"
+          onClick={onDelete}
+          data-testid={`button-delete-${employee.id}`}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }
 
-function EmployeeRow({ employee, onView }: { employee: Employee; onView: () => void }) {
-  const fullName = [employee.first_name, employee.second_name, employee.third_name].filter(Boolean).join(" ");
+function EmployeeRow({
+  employee,
+  onView,
+  onDelete,
+}: {
+  employee: Employee;
+  onView: () => void;
+  onDelete: () => void;
+}) {
+  const fullName = [employee.first_name, employee.second_name, employee.third_name]
+    .filter(Boolean)
+    .join(" ");
   const photoUrl = buildObjectUrl(employee.profile_photo_path);
 
   return (
@@ -219,24 +370,52 @@ function EmployeeRow({ employee, onView }: { employee: Employee; onView: () => v
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5">
           {photoUrl ? (
-            <img src={photoUrl} alt={fullName} className="w-8 h-8 rounded-lg object-cover border border-border" />
+            <img
+              src={photoUrl}
+              alt={fullName}
+              className="w-8 h-8 rounded-lg object-cover border border-border"
+            />
           ) : (
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Users className="w-4 h-4 text-primary" />
             </div>
           )}
-          <span className="text-sm font-medium" data-testid={`text-name-row-${employee.id}`}>{fullName}</span>
+          <span
+            className="text-sm font-medium"
+            data-testid={`text-name-row-${employee.id}`}
+          >
+            {fullName}
+          </span>
         </div>
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">{employee.phone}</td>
-      <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">{employee.skills}</td>
+      <td className="px-4 py-3 text-sm text-muted-foreground max-w-xs truncate">
+        {employee.skills}
+      </td>
       <td className="px-4 py-3 text-sm text-muted-foreground">
         {new Date(employee.created_at).toLocaleDateString()}
       </td>
       <td className="px-4 py-3">
-        <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={onView} data-testid={`button-view-row-${employee.id}`}>
-          <Eye className="w-3.5 h-3.5" /> View
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs"
+            onClick={onView}
+            data-testid={`button-view-row-${employee.id}`}
+          >
+            <Eye className="w-3.5 h-3.5" /> View
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground border-destructive/30"
+            onClick={onDelete}
+            data-testid={`button-delete-row-${employee.id}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Delete
+          </Button>
+        </div>
       </td>
     </tr>
   );
@@ -247,6 +426,7 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [selected, setSelected] = useState<Employee | null>(null);
+  const [toDelete, setToDelete] = useState<Employee | null>(null);
   const queryClient = useQueryClient();
 
   const sessionQuery = useGetAuthSession({
@@ -262,6 +442,15 @@ export default function AdminDashboard() {
 
   const adminLogout = useAdminLogout();
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteEmployee(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+      setToDelete(null);
+      setSelected(null);
+    },
+  });
+
   useEffect(() => {
     if (sessionQuery.data?.authenticated === false) {
       setLocation("/admin");
@@ -275,6 +464,11 @@ export default function AdminDashboard() {
         setLocation("/admin");
       },
     });
+  };
+
+  const handleDeleteRequest = (emp: Employee) => {
+    setSelected(null);
+    setToDelete(emp);
   };
 
   if (sessionQuery.isLoading) {
@@ -333,7 +527,10 @@ export default function AdminDashboard() {
             <Users className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-foreground" data-testid="text-employee-count">
+            <p
+              className="text-2xl font-bold text-foreground"
+              data-testid="text-employee-count"
+            >
               {employees.length}
             </p>
             <p className="text-xs text-muted-foreground">Total Employees</p>
@@ -394,13 +591,20 @@ export default function AdminDashboard() {
               {search ? "No employees match your search" : "No employees yet"}
             </p>
             <p className="text-sm text-muted-foreground/70 mt-1">
-              {search ? "Try a different search term" : "Employee submissions will appear here"}
+              {search
+                ? "Try a different search term"
+                : "Employee submissions will appear here"}
             </p>
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((emp) => (
-              <EmployeeCard key={emp.id} employee={emp} onView={() => setSelected(emp)} />
+              <EmployeeCard
+                key={emp.id}
+                employee={emp}
+                onView={() => setSelected(emp)}
+                onDelete={() => handleDeleteRequest(emp)}
+              />
             ))}
           </div>
         ) : (
@@ -408,8 +612,11 @@ export default function AdminDashboard() {
             <table className="w-full">
               <thead>
                 <tr className="bg-muted/40 border-b border-border">
-                  {["Name", "Phone", "Skills", "Submitted", "Action"].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {["Name", "Phone", "Skills", "Submitted", "Actions"].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                    >
                       {h}
                     </th>
                   ))}
@@ -417,7 +624,12 @@ export default function AdminDashboard() {
               </thead>
               <tbody>
                 {filtered.map((emp) => (
-                  <EmployeeRow key={emp.id} employee={emp} onView={() => setSelected(emp)} />
+                  <EmployeeRow
+                    key={emp.id}
+                    employee={emp}
+                    onView={() => setSelected(emp)}
+                    onDelete={() => handleDeleteRequest(emp)}
+                  />
                 ))}
               </tbody>
             </table>
@@ -425,8 +637,23 @@ export default function AdminDashboard() {
         )}
       </main>
 
+      {/* Employee detail modal */}
       {selected && (
-        <EmployeeModal employee={selected} onClose={() => setSelected(null)} />
+        <EmployeeModal
+          employee={selected}
+          onClose={() => setSelected(null)}
+          onDelete={handleDeleteRequest}
+        />
+      )}
+
+      {/* Delete confirmation dialog */}
+      {toDelete && (
+        <ConfirmDeleteDialog
+          employee={toDelete}
+          onConfirm={() => deleteMutation.mutate(toDelete.id)}
+          onCancel={() => setToDelete(null)}
+          isDeleting={deleteMutation.isPending}
+        />
       )}
     </div>
   );

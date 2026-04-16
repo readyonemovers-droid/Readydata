@@ -87,4 +87,27 @@ router.get("/employees/:id", async (req: Request, res: Response): Promise<void> 
   res.json(GetEmployeeResponse.parse(employee));
 });
 
+router.delete("/employees/:id", async (req: Request, res: Response): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = GetEmployeeParams.safeParse({ id: Number(rawId) });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [deleted] = await db
+    .delete(employeesTable)
+    .where(eq(employeesTable.id, params.data.id))
+    .returning({ id: employeesTable.id });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Employee not found" });
+    return;
+  }
+
+  res.json({ id: deleted.id, deleted: true });
+});
+
 export default router;
