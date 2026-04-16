@@ -35,9 +35,11 @@ const step1Schema = z.object({
   third_name: z.string().min(1, "Third name is required"),
   phone: z
     .string()
-    .regex(/^07\d{8}$/, "Phone must be in format 07XXXXXXXX (10 digits)"),
+    .regex(
+      /^(07|01)\d{8}$/,
+      "Phone must be in format 01xxxxxxxxx or 07XXXXXXXX (10 digits)",
+    ),
 });
-
 const step4Schema = z.object({
   full_name_id: z.string().min(1, "Full name as on ID is required"),
   skills: z.string().min(1, "Skills are required"),
@@ -70,8 +72,8 @@ function StepIndicator({ current }: { current: number }) {
                   isCompleted
                     ? "bg-primary text-primary-foreground shadow-md"
                     : isActive
-                    ? "bg-primary text-primary-foreground shadow-lg scale-110"
-                    : "bg-muted text-muted-foreground"
+                      ? "bg-primary text-primary-foreground shadow-lg scale-110"
+                      : "bg-muted text-muted-foreground"
                 }`}
               >
                 {isCompleted ? (
@@ -259,12 +261,14 @@ export default function EmployeeRegistration() {
           ? (err as { status: number }).status
           : 0;
       const message =
-        err instanceof Error && "data" in err && err.data != null &&
+        err instanceof Error &&
+        "data" in err &&
+        err.data != null &&
         typeof (err.data as Record<string, unknown>).error === "string"
           ? (err.data as { error: string }).error
           : err instanceof Error
-          ? err.message
-          : "Submission failed. Please try again.";
+            ? err.message
+            : "Submission failed. Please try again.";
 
       if (status === 409) {
         setPhoneTaken(true);
@@ -286,7 +290,8 @@ export default function EmployeeRegistration() {
           </div>
           <h2 className="text-2xl font-bold text-foreground">Submitted!</h2>
           <p className="text-muted-foreground">
-            Your information has been submitted successfully. We'll be in touch soon.
+            Your information has been submitted successfully. We'll be in touch
+            soon.
           </p>
           <Button
             data-testid="button-register-again"
@@ -325,9 +330,12 @@ export default function EmployeeRegistration() {
             <User className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-foreground tracking-tight">Ready One Movers</h1>
+            <h1 className="text-xl font-extrabold text-foreground tracking-tight">
+              Ready One Movers
+            </h1>
             <p className="text-xs text-muted-foreground">
-              Employee Registration — Complete all steps to submit your information
+              Employee Registration — Complete all steps to submit your
+              information
             </p>
           </div>
         </div>
@@ -341,7 +349,9 @@ export default function EmployeeRegistration() {
           {step === 1 && (
             <form onSubmit={handleStep1} className="p-6 sm:p-8 space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-foreground">Personal Information</h2>
+                <h2 className="text-xl font-bold text-foreground">
+                  Personal Information
+                </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Enter your name exactly as you'd like it recorded
                 </p>
@@ -409,7 +419,11 @@ export default function EmployeeRegistration() {
                 </p>
               </div>
               <div className="flex justify-end pt-2">
-                <Button data-testid="button-next-step1" type="submit" className="gap-2">
+                <Button
+                  data-testid="button-next-step1"
+                  type="submit"
+                  className="gap-2 px-6 py-3 text-base"
+                >
                   Next <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
@@ -420,7 +434,9 @@ export default function EmployeeRegistration() {
           {step === 2 && (
             <div className="p-6 sm:p-8 space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-foreground">Profile Photo</h2>
+                <h2 className="text-xl font-bold text-foreground">
+                  Profile Photo
+                </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Upload a clear half-portrait photo wearing your job uniform
                 </p>
@@ -469,9 +485,12 @@ export default function EmployeeRegistration() {
           {step === 3 && (
             <div className="p-6 sm:p-8 space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-foreground">National ID</h2>
+                <h2 className="text-xl font-bold text-foreground">
+                  National ID
+                </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Upload both sides of your national ID — images must be clear and readable
+                  Upload both sides of your national ID — images must be clear
+                  and readable
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -490,9 +509,7 @@ export default function EmployeeRegistration() {
                   testId="upload-id-back"
                 />
               </div>
-              {idError && (
-                <p className="text-sm text-destructive">{idError}</p>
-              )}
+              {idError && <p className="text-sm text-destructive">{idError}</p>}
               <div className="flex justify-between pt-2">
                 <Button
                   data-testid="button-back-step3"
@@ -519,7 +536,9 @@ export default function EmployeeRegistration() {
           {step === 4 && (
             <form onSubmit={handleStep4} className="p-6 sm:p-8 space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-foreground">Additional Details</h2>
+                <h2 className="text-xl font-bold text-foreground">
+                  Additional Details
+                </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Please make sure your full name matches your ID exactly
                 </p>
@@ -563,7 +582,11 @@ export default function EmployeeRegistration() {
                 >
                   <ChevronLeft className="w-4 h-4" /> Back
                 </Button>
-                <Button data-testid="button-next-step4" type="submit" className="gap-2">
+                <Button
+                  data-testid="button-next-step4"
+                  type="submit"
+                  className="gap-2"
+                >
                   Review <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
@@ -574,7 +597,9 @@ export default function EmployeeRegistration() {
           {step === 5 && (
             <div className="p-6 sm:p-8 space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-foreground">Review & Submit</h2>
+                <h2 className="text-xl font-bold text-foreground">
+                  Review & Submit
+                </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Check everything looks correct before submitting
                 </p>
@@ -588,17 +613,32 @@ export default function EmployeeRegistration() {
                 </div>
                 <div className="px-4 py-3 grid grid-cols-2 gap-2 text-sm">
                   <span className="text-muted-foreground">First Name</span>
-                  <span className="font-medium" data-testid="review-first-name">{formData.first_name}</span>
+                  <span className="font-medium" data-testid="review-first-name">
+                    {formData.first_name}
+                  </span>
                   <span className="text-muted-foreground">Second Name</span>
-                  <span className="font-medium" data-testid="review-second-name">{formData.second_name}</span>
+                  <span
+                    className="font-medium"
+                    data-testid="review-second-name"
+                  >
+                    {formData.second_name}
+                  </span>
                   <span className="text-muted-foreground">Third Name</span>
-                  <span className="font-medium" data-testid="review-third-name">{formData.third_name}</span>
+                  <span className="font-medium" data-testid="review-third-name">
+                    {formData.third_name}
+                  </span>
                   <span className="text-muted-foreground">Phone</span>
-                  <span className="font-medium" data-testid="review-phone">{formData.phone}</span>
+                  <span className="font-medium" data-testid="review-phone">
+                    {formData.phone}
+                  </span>
                   <span className="text-muted-foreground">Full Name (ID)</span>
-                  <span className="font-medium" data-testid="review-full-name">{formData.full_name_id}</span>
+                  <span className="font-medium" data-testid="review-full-name">
+                    {formData.full_name_id}
+                  </span>
                   <span className="text-muted-foreground">Skills</span>
-                  <span className="font-medium" data-testid="review-skills">{formData.skills}</span>
+                  <span className="font-medium" data-testid="review-skills">
+                    {formData.skills}
+                  </span>
                 </div>
 
                 <div className="px-4 py-3 bg-muted/40">
@@ -621,7 +661,9 @@ export default function EmployeeRegistration() {
                         />
                       ) : (
                         <div className="w-full h-20 bg-muted rounded-lg border border-dashed border-border flex items-center justify-center">
-                          <span className="text-xs text-destructive">Missing</span>
+                          <span className="text-xs text-destructive">
+                            Missing
+                          </span>
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground">{label}</p>
